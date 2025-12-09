@@ -1,66 +1,81 @@
 #!/bin/bash
-# Full ExpressLRS-Configurator ARM64 Build Script
-# Installs everything from scratch, logs everything, uses apt/npm/yarn only
 
-set -e  # Exit immediately on any error
+# Set up user variables
+user=$(whoami)
+install_dir="$HOME/elrs/ExpressLRS-Configurator"
+repo_url="https://github.com/ExpressLRS/ExpressLRS-Configurator.git"
 
-# 0️⃣ Install system dependencies via apt
-sudo apt update
-sudo apt install -y build-essential git python3 python3-pip pkg-config libx11-dev libxkbfile-dev libsecret-1-dev \
-  libgconf-2-4 libnss3 libxss1 libasound2 libatk-bridge2.0-0 libgtk-3-0
+# 1. Check if directory exists, clone if not
+if [ ! -d "$install_dir" ]; then
+    echo "Cloning ExpressLRS Configurator repo..."
+    git clone "$repo_url" "$install_dir"
+else
+    echo "Repository already cloned. Pulling latest changes..."
+    cd "$install_dir"
+    git pull
+fi
 
-echo "System dependencies installed."
+# 2. Install dependencies: make sure you have Node.js, npm, yarn, etc.
+echo "Checking dependencies..."
 
-# 1️⃣ Prepare project directory
-mkdir -p ~/elrs
-cd ~/elrs
+# Ensure node & npm are installed
+if ! command -v node &> /dev/null; then
+    echo "Node.js not found. Installing..."
+    curl -sL https://deb.nodesource.com/setup_16.x | sudo -E bash -
+    sudo apt-get install -y nodejs
+fi
 
-# 2️⃣ Clone the repository recursively
-git clone --recursive https://github.com/ExpressLRS/ExpressLRS-Configurator.git
-cd ExpressLRS-Configurator
+# Ensure yarn is installed
+if ! command -v yarn &> /dev/null; then
+    echo "Yarn not found. Installing..."
+    npm install -g yarn
+fi
 
-# 3️⃣ Clean old node modules and lock files just in case
-rm -rf node_modules package-lock.json yarn.lock
-echo "Cleaned previous node_modules and lock files"
+# Ensure necessary build tools are available
+if ! dpkg -l | grep -q "build-essential"; then
+    echo "Installing build-essential package..."
+    sudo apt-get install -y build-essential
+fi
 
-# 4️⃣ Install Node dependencies
-npm install --legacy-peer-deps
+# 3. Install app dependencies
+echo "Installing app dependencies..."
+cd "$install_dir"
 yarn install
-echo "Node dependencies installed."
 
-# 5️⃣ Fix Electron sandbox permissions (important for Electron to run correctly)
-if [ ! -f "/usr/local/lib/node_modules/electron/dist/chrome-sandbox" ]; then
-  echo "chrome-sandbox file not found, skipping sandbox fix"
-else
-  echo "Fixing Electron sandbox permissions..."
-  sudo chown root:root /usr/local/lib/node_modules/electron/dist/chrome-sandbox
-  sudo chmod 4755 /usr/local/lib/node_modules/electron/dist/chrome-sandbox
-  echo "Electron sandbox permissions fixed"
+# 4. Handle environment variables in .bashrc
+bashrc_file="$HOME/.bashrc"
+
+# Check and add Node.js and Yarn paths if not already present
+if ! grep -q 'export PATH=.*yarn' "$bashrc_file"; then
+    echo "Adding Yarn to PATH in .bashrc..."
+    echo 'export PATH="$PATH:$(yarn global bin)"' >> "$bashrc_file"
 fi
 
-# 6️⃣ Rebuild native modules for ARM64
-npx electron-builder install-app-deps
-echo "Native dependencies rebuilt."
-
-# 7️⃣ Build the Linux ARM64 application with live logging
-echo "Starting build process for ARM64 architecture..."
-npx electron-builder --linux --arm64 --publish never 2>&1 | tee build.log
-
-# 8️⃣ Done building! Check ./dist for the Linux ARM64 binary.
-echo "Build complete! Check ./dist for the Linux ARM64 binary."
-
-# 9️⃣ Run the app (this is the step to launch the app after build)
-# Make sure the app is built first before trying to run it.
-DIST_DIR="./dist"
-if [ -d "$DIST_DIR" ]; then
-  echo "Launching ExpressLRS Configurator..."
-  # If the app was packaged successfully, run it.
-  ./dist/ExpressLRS-Configurator-linux-arm64/ExpressLRS-Configurator
-else
-  echo "Error: Build directory not found. Please check the build log."
+# Check and add custom environment variables, if needed (e.g., for Electron)
+if ! grep -q 'export NODE_ENV=production' "$bashrc_file"; then
+    echo "Adding NODE_ENV to .bashrc..."
+    echo 'export NODE_ENV=production' >> "$bashrc_file"
 fi
 
-# 🔟 Optional: Clean up unnecessary files (comment this out if you want to keep the node_modules)
-# rm -rf node_modules package-lock.json yarn.lock
-# echo "Cleaned up build files."
+# Reload .bashrc to apply changes
+source "$bashrc_file"
 
+# 5. Build the project
+echo "Building the project..."
+yarn build
+
+# 6. Handle Electron app permissions (for Linux)
+# Check if `chrome-sandbox` permissions need to be fixed (Electron sandbox)
+chrome_sandbox="$install_dir/release/linux-arm64-unpacked/chrome-sandbox"
+if [ -f "$chrome_sandbox" ] && [ ! -x "$chrome_sandbox" ]; then
+    echo "Fixing chrome-sandbox permissions..."
+    sudo chown root:root "$chrome_sandbox"
+    sudo chmod 4755 "$chrome_sandbox"
+fi
+
+# 7. Install the app (electron-builder packaging)
+echo "Packaging the app..."
+yarn package
+
+echo "Installation completed successfully!"
+echo "You can run the app by navigating to $install_dir/release/linux-arm64-unpacked and running './expresslrs-configurator'."
