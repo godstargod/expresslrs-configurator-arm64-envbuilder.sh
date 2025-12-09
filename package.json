@@ -1,0 +1,73 @@
+  {
+  "name": "expresslrs-configurator",
+  "productName": "ExpressLRS Configurator",
+  "description": "Cross platform build & configuration tool for the ExpressLRS firmware",
+  "scripts": {
+    "build": "concurrently \"yarn build:main\" \"yarn build:renderer\"",
+    "build-dll": "yarn cross-env NODE_ENV=development webpack --config .erb/configs/webpack.config.renderer.dev.dll.ts",
+    "build:main": "cross-env NODE_ENV=production webpack --config .erb/configs/webpack.config.main.prod.ts",
+    "build:renderer": "cross-env NODE_ENV=production webpack --config .erb/configs/webpack.config.renderer.prod.ts",
+    "rebuild": "electron-rebuild --parallel --types prod,dev,optional --module-dir ./release/app",
+    "lint": "cross-env NODE_ENV=development eslint . --cache --ext .js,.jsx,.ts,.tsx",
+    "lint:fix": "yarn lint --fix",
+    "package": "yarn build",
+    "postinstall": "ts-node .erb/scripts/check-native-deps.js && electron-builder install-app-deps && yarn build-dll && yarn-deduplicate yarn.lock",
+    "start": "ts-node .erb/scripts/check-port-in-use.js && cross-env yarn start:renderer",
+    "start:main": "cross-env NODE_ENV=development electron -r ts-node/register ./src/main/main.ts",
+    "start:preload": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.preload.dev.ts",
+    "start:renderer": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack serve --config ./.erb/configs/webpack.config.renderer.dev.ts",
+    "test": "jest --passWithNoTests",
+    "gql-codegen": "graphql-codegen --config codegen.yml && yarn lint:fix",
+    "prepare": "husky install",
+    "typecheck": "tsc --project tsconfig.json --noEmit --skipLibCheck"
+  },
+  "author": {
+    "name": "ExpressLRS Configurator Contributors",
+    "email": "info@expresslrs.org",
+    "url": "https://github.com/ExpressLRS/ExpressLRS-Configurator/graphs/contributors"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ExpressLRS/ExpressLRS-Configurator"
+  },
+  "license": "GPL-3.0-or-later",
+  "keywords": [
+    "expresslrs"
+  ],
+  "jest": {
+    "moduleDirectories": [
+      "node_modules",
+      "release/app/node_modules",
+      "src"
+    ],
+    "moduleFileExtensions": [
+      "js",
+      "jsx",
+      "ts",
+      "tsx",
+      "json"
+    ],
+    "transform": {
+      "\\.(ts|tsx|js|jsx)$": "ts-jest"
+    }
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.6.0",
+    "@graphql-codegen/cli": "5.0.0",
+    "@testing-library/jest-dom": "^5.16.4",
+    "@testing-library/react": "^13.3.0",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "27.3.11",
+    "electron-builder": "24.13.3",
+    "eslint": "^8.56.0",
+    "husky": "^8.0.3",
+    "jest": "^28.1.1",
+    "prettier": "^2.6.2",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.6.2",
+    "webpack": "^5.73.0",
+    "webpack-cli": "5.1.4"
+  }
+}
+
